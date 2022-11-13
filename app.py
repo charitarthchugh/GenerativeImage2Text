@@ -5,7 +5,7 @@ from pathlib import Path
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, Request, UploadFile
 from twilio.rest import Client
 
 import config
@@ -19,28 +19,38 @@ load_dotenv()
 
 
 @app.post("/")
-async def unlock_door(file: UploadFile):
-    if "image" in file.content_type:
+async def whosthere(img: UploadFile):
+    
         a = Path("image.jpg")
-        a.write_bytes(file.file.read())
+        a.write_bytes(img.file.read())
         caption = inference.test_git_inference_single_image(
-            a.resolve(), "GIT_BASE_VATEX", ""
+            str(a.resolve()), "GIT_BASE_VATEX", ""
         )
-        user_response = twilio_send_sms(caption)
-        if user_response:
-            pass
+        twilio_send_sms(caption)
 
 
-def twilio_send_sms(to_number: str, message: str):
+@app.post("/sms")
+def unlock(string: str):
+    # body = request
+    msg = body["body"]
+    print(msg)
+    if "y" in msg:
+        settings.door_open = True
+
+
+def twilio_send_sms(message: str):
     client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
     return client.messages.create(
-        from_=settings.twilio_phone_number, to=to_number, body=message
+        from_=settings.twilio_phone_number, to=settings.twilio_user_phone, body=message
     )
 
 
-@app.post("/update-user")
-def update_user(number: int, name: str):
-    pass
+@app.get("/door-status")
+def check_door_status() -> bool:
+    if settings.door_open == "True":
+        return 1
+    else:
+        return 0
 
 
 if __name__ == "__main__":
@@ -57,4 +67,4 @@ if __name__ == "__main__":
         stderr=subprocess.DEVNULL,
     )
     # print(inference.test_git_inference_single_image(sys.argv[1], "GIT_BASE_VATEX", ""))
-    # uvicorn.run(app)
+    uvicorn.run(app, port=8000, host="0.0.0.0")
