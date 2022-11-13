@@ -107,6 +107,8 @@ def test_git_inference_single_image(image_path, model_name, prefix):
         })
     cap = tokenizer.decode(result['predictions'][0].tolist(), skip_special_tokens=True)
     logging.info('output: {}'.format(cap))
+    print(cap)
+    return cap
 
 def get_image_transform(param):
     crop_size = param.get('test_crop_size', 224)
