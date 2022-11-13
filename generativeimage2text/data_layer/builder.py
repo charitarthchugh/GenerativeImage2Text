@@ -21,16 +21,14 @@ def collate_fn(batch):
                     if any(c < m for c, m in zip(b.shape, max_shape)):
                         b2 = torch.zeros(max_shape, dtype=b.dtype, device=b.device)
                         if b.dim() == 1:
-                            b2[:b.shape[0]] = b
+                            b2[: b.shape[0]] = b
                         elif b.dim() == 2:
-                            b2[:b.shape[0], :b.shape[1]] = b
+                            b2[: b.shape[0], : b.shape[1]] = b
                         elif b.dim() == 3:
-                            b2[:b.shape[0], :b.shape[1], :b.shape[2]] = b
+                            b2[: b.shape[0], : b.shape[1], : b.shape[2]] = b
                         else:
                             raise NotImplementedError
                         b = b2
                     batch2.append(b)
                 batch = batch2
         return default_collate(batch)
-
-

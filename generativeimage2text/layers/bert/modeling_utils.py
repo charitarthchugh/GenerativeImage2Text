@@ -15,8 +15,7 @@
 # limitations under the License.
 """PyTorch BERT model."""
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import copy
 import json
@@ -37,7 +36,7 @@ logger = logging.getLogger()
 
 CONFIG_NAME = "config.json"
 WEIGHTS_NAME = "pytorch_model.bin"
-TF_WEIGHTS_NAME = 'model.ckpt'
+TF_WEIGHTS_NAME = "model.ckpt"
 
 
 try:
@@ -45,32 +44,36 @@ try:
 except ImportError:
     # Older PyTorch compatibility
     class Identity(nn.Module):
-        r"""A placeholder identity operator that is argument-insensitive.
-        """
+        r"""A placeholder identity operator that is argument-insensitive."""
+
         def __init__(self, *args, **kwargs):
             super(Identity, self).__init__()
 
         def forward(self, input):
             return input
 
+
 class PretrainedConfig(object):
-    """ Base class for all configuration classes.
-        Handle a few common parameters and methods for loading/downloading/saving configurations.
+    """Base class for all configuration classes.
+    Handle a few common parameters and methods for loading/downloading/saving configurations.
     """
+
     pretrained_config_archive_map = {}
 
     def __init__(self, **kwargs):
-        self.finetuning_task = kwargs.pop('finetuning_task', None)
-        self.num_labels = kwargs.pop('num_labels', 2)
-        self.output_attentions = kwargs.pop('output_attentions', False)
-        self.output_hidden_states = kwargs.pop('output_hidden_states', False)
-        self.torchscript = kwargs.pop('torchscript', False)
+        self.finetuning_task = kwargs.pop("finetuning_task", None)
+        self.num_labels = kwargs.pop("num_labels", 2)
+        self.output_attentions = kwargs.pop("output_attentions", False)
+        self.output_hidden_states = kwargs.pop("output_hidden_states", False)
+        self.torchscript = kwargs.pop("torchscript", False)
 
     def save_pretrained(self, save_directory):
-        """ Save a configuration object to a directory, so that it
-            can be re-loaded using the `from_pretrained(save_directory)` class method.
+        """Save a configuration object to a directory, so that it
+        can be re-loaded using the `from_pretrained(save_directory)` class method.
         """
-        assert os.path.isdir(save_directory), "Saving path should be a directory where the model and configuration can be saved"
+        assert os.path.isdir(
+            save_directory
+        ), "Saving path should be a directory where the model and configuration can be saved"
 
         # If we save using the predefined names, we can load using `from_pretrained`
         output_config_file = os.path.join(save_directory, CONFIG_NAME)
@@ -79,7 +82,7 @@ class PretrainedConfig(object):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
-        r""" Instantiate a PretrainedConfig from a pre-trained model configuration.
+        r"""Instantiate a PretrainedConfig from a pre-trained model configuration.
 
         Params:
             **pretrained_model_name_or_path**: either:
@@ -116,11 +119,13 @@ class PretrainedConfig(object):
             >>> assert unused_kwargs == {'foo': False}
 
         """
-        cache_dir = kwargs.pop('cache_dir', None)
-        return_unused_kwargs = kwargs.pop('return_unused_kwargs', False)
+        cache_dir = kwargs.pop("cache_dir", None)
+        return_unused_kwargs = kwargs.pop("return_unused_kwargs", False)
 
         if pretrained_model_name_or_path in cls.pretrained_config_archive_map:
-            config_file = cls.pretrained_config_archive_map[pretrained_model_name_or_path]
+            config_file = cls.pretrained_config_archive_map[
+                pretrained_model_name_or_path
+            ]
         elif os.path.isdir(pretrained_model_name_or_path):
             config_file = os.path.join(pretrained_model_name_or_path, CONFIG_NAME)
         else:
@@ -132,21 +137,28 @@ class PretrainedConfig(object):
             if pretrained_model_name_or_path in cls.pretrained_config_archive_map:
                 logger.error(
                     "Couldn't reach server at '{}' to download pretrained model configuration file.".format(
-                        config_file))
+                        config_file
+                    )
+                )
             else:
                 logger.error(
                     "Model name '{}' was not found in model name list ({}). "
                     "We assumed '{}' was a path or url but couldn't find any file "
                     "associated to this path or url.".format(
                         pretrained_model_name_or_path,
-                        ', '.join(cls.pretrained_config_archive_map.keys()),
-                        config_file))
+                        ", ".join(cls.pretrained_config_archive_map.keys()),
+                        config_file,
+                    )
+                )
             return None
         if resolved_config_file == config_file:
             logger.info("loading configuration file {}".format(config_file))
         else:
-            logger.info("loading configuration file {} from cache at {}".format(
-                config_file, resolved_config_file))
+            logger.info(
+                "loading configuration file {} from cache at {}".format(
+                    config_file, resolved_config_file
+                )
+            )
 
         # Load config
         config = cls.from_json_file(resolved_config_file)
@@ -184,7 +196,7 @@ class PretrainedConfig(object):
     @classmethod
     def from_json_file(cls, json_file):
         """Constructs a `BertConfig` from a json file of parameters."""
-        with open(json_file, "r", encoding='utf-8') as reader:
+        with open(json_file, "r", encoding="utf-8") as reader:
             text = reader.read()
         return cls.from_dict(json.loads(text))
 
@@ -204,14 +216,15 @@ class PretrainedConfig(object):
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
 
     def to_json_file(self, json_file_path):
-        """ Save this instance to a json file."""
-        with open(json_file_path, "w", encoding='utf-8') as writer:
+        """Save this instance to a json file."""
+        with open(json_file_path, "w", encoding="utf-8") as writer:
             writer.write(self.to_json_string())
 
+
 def prune_linear_layer(layer, index, dim=0):
-    """ Prune a linear layer (a model parameters) to keep only entries in index.
-        Return the pruned layer as a new layer with requires_grad=True.
-        Used to remove heads.
+    """Prune a linear layer (a model parameters) to keep only entries in index.
+    Return the pruned layer as a new layer with requires_grad=True.
+    Used to remove heads.
     """
     index = index.to(layer.weight.device)
     W = layer.weight.index_select(dim, index).clone().detach()
@@ -222,7 +235,9 @@ def prune_linear_layer(layer, index, dim=0):
             b = layer.bias[index].clone().detach()
     new_size = list(layer.weight.size())
     new_size[dim] = len(index)
-    new_layer = nn.Linear(new_size[1], new_size[0], bias=layer.bias is not None).to(layer.weight.device)
+    new_layer = nn.Linear(new_size[1], new_size[0], bias=layer.bias is not None).to(
+        layer.weight.device
+    )
     new_layer.weight.requires_grad = False
     new_layer.weight.copy_(W.contiguous())
     new_layer.weight.requires_grad = True
@@ -231,5 +246,3 @@ def prune_linear_layer(layer, index, dim=0):
         new_layer.bias.copy_(b.contiguous())
         new_layer.bias.requires_grad = True
     return new_layer
-
-

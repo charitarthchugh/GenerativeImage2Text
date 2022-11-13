@@ -26,17 +26,19 @@ import torch
 from torch import nn
 
 from .activations import ACT2FN
-from .modeling_utils import (PretrainedConfig, prune_linear_layer)
+from .modeling_utils import PretrainedConfig, prune_linear_layer
 
 logger = logging.getLogger()
 
 BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    'bert-base-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-config.json",
+    "bert-base-uncased": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-config.json",
 }
+
 
 class QK2Attention(nn.Module):
     def forward(self, query, key, attention_mask, gamma):
         return qk2attn(query, key, attention_mask, gamma)
+
 
 def qk2attn(query, key, attention_mask, gamma):
     query = query / gamma
@@ -50,23 +52,25 @@ def qk2attn(query, key, attention_mask, gamma):
 class BertConfig(PretrainedConfig):
     pretrained_config_archive_map = BERT_PRETRAINED_CONFIG_ARCHIVE_MAP
 
-    def __init__(self,
-                 vocab_size_or_config_json_file=30522,
-                 hidden_size=768,
-                 num_hidden_layers=12,
-                 num_attention_heads=12,
-                 intermediate_size=3072,
-                 hidden_act="gelu",
-                 hidden_dropout_prob=0.1,
-                 attention_probs_dropout_prob=0.1,
-                 max_position_embeddings=512,
-                 type_vocab_size=2,
-                 initializer_range=0.02,
-                 layer_norm_eps=1e-12,
-                 **kwargs):
+    def __init__(
+        self,
+        vocab_size_or_config_json_file=30522,
+        hidden_size=768,
+        num_hidden_layers=12,
+        num_attention_heads=12,
+        intermediate_size=3072,
+        hidden_act="gelu",
+        hidden_dropout_prob=0.1,
+        attention_probs_dropout_prob=0.1,
+        max_position_embeddings=512,
+        type_vocab_size=2,
+        initializer_range=0.02,
+        layer_norm_eps=1e-12,
+        **kwargs
+    ):
         super(BertConfig, self).__init__(**kwargs)
         if isinstance(vocab_size_or_config_json_file, str):
-            with open(vocab_size_or_config_json_file, "r", encoding='utf-8') as reader:
+            with open(vocab_size_or_config_json_file, "r", encoding="utf-8") as reader:
                 json_config = json.loads(reader.read())
             for key, value in json_config.items():
                 self.__dict__[key] = value
@@ -84,10 +88,14 @@ class BertConfig(PretrainedConfig):
             self.initializer_range = initializer_range
             self.layer_norm_eps = layer_norm_eps
         else:
-            raise ValueError("First argument must be either a vocabulary size (int)"
-                             "or the path to a pretrained model config file (str)")
+            raise ValueError(
+                "First argument must be either a vocabulary size (int)"
+                "or the path to a pretrained model config file (str)"
+            )
+
 
 LayerNormClass = torch.nn.LayerNorm
+
 
 class BertSelfAttention(nn.Module):
     def __init__(self, config):
@@ -95,7 +103,8 @@ class BertSelfAttention(nn.Module):
         if config.hidden_size % config.num_attention_heads != 0:
             raise ValueError(
                 "The hidden size (%d) is not a multiple of the number of attention "
-                "heads (%d)" % (config.hidden_size, config.num_attention_heads))
+                "heads (%d)" % (config.hidden_size, config.num_attention_heads)
+            )
         self.output_attentions = config.output_attentions
 
         self.num_attention_heads = config.num_attention_heads
@@ -113,14 +122,20 @@ class BertSelfAttention(nn.Module):
     def transpose_for_scores(self, x):
         if torch._C._get_tracing_state():
             # exporter is not smart enough to detect dynamic size for some paths
-            x = x.view(x.shape[0], -1, self.num_attention_heads, self.attention_head_size)
+            x = x.view(
+                x.shape[0], -1, self.num_attention_heads, self.attention_head_size
+            )
         else:
-            new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+            new_x_shape = x.size()[:-1] + (
+                self.num_attention_heads,
+                self.attention_head_size,
+            )
             x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, hidden_states, attention_mask, head_mask=None,
-            history_state=None):
+    def forward(
+        self, hidden_states, attention_mask, head_mask=None, history_state=None
+    ):
         if history_state is not None:
             x_states = torch.cat([history_state, hidden_states], dim=1)
             mixed_query_layer = self.query(hidden_states)
@@ -135,11 +150,13 @@ class BertSelfAttention(nn.Module):
         key_layer = self.transpose_for_scores(mixed_key_layer)
         value_layer = self.transpose_for_scores(mixed_value_layer)
 
-        attention_probs = self.qk2attn(query_layer, key_layer, attention_mask, math.sqrt(self.attention_head_size))
-        #attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
-        #attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-        #attention_scores = attention_scores + attention_mask
-        #attention_probs = self.softmax(attention_scores)
+        attention_probs = self.qk2attn(
+            query_layer, key_layer, attention_mask, math.sqrt(self.attention_head_size)
+        )
+        # attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+        # attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+        # attention_scores = attention_scores + attention_mask
+        # attention_probs = self.softmax(attention_scores)
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
@@ -155,7 +172,11 @@ class BertSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
-        outputs = (context_layer, attention_probs) if self.output_attentions else (context_layer,)
+        outputs = (
+            (context_layer, attention_probs)
+            if self.output_attentions
+            else (context_layer,)
+        )
         return outputs
 
 
@@ -163,9 +184,11 @@ class BertSelfOutput(nn.Module):
     def __init__(self, config):
         super(BertSelfOutput, self).__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        self.pre_norm = hasattr(config, 'pre_norm') and config.pre_norm
+        self.pre_norm = hasattr(config, "pre_norm") and config.pre_norm
         if not self.pre_norm:
-            self.LayerNorm = LayerNormClass(config.hidden_size, eps=config.layer_norm_eps)
+            self.LayerNorm = LayerNormClass(
+                config.hidden_size, eps=config.layer_norm_eps
+            )
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
     def forward(self, hidden_states, input_tensor):
@@ -177,12 +200,15 @@ class BertSelfOutput(nn.Module):
             hidden_states = hidden_states + input_tensor
         return hidden_states
 
+
 class BertAttention(nn.Module):
     def __init__(self, config):
         super(BertAttention, self).__init__()
-        self.pre_norm = hasattr(config, 'pre_norm') and config.pre_norm
+        self.pre_norm = hasattr(config, "pre_norm") and config.pre_norm
         if self.pre_norm:
-            self.LayerNorm = LayerNormClass(config.hidden_size, eps=config.layer_norm_eps)
+            self.LayerNorm = LayerNormClass(
+                config.hidden_size, eps=config.layer_norm_eps
+            )
         self.self = BertSelfAttention(config)
         self.output = BertSelfOutput(config)
 
@@ -201,18 +227,26 @@ class BertAttention(nn.Module):
         self.output.dense = prune_linear_layer(self.output.dense, index, dim=1)
         # Update hyper params
         self.self.num_attention_heads = self.self.num_attention_heads - len(heads)
-        self.self.all_head_size = self.self.attention_head_size * self.self.num_attention_heads
+        self.self.all_head_size = (
+            self.self.attention_head_size * self.self.num_attention_heads
+        )
 
-    def forward(self, input_tensor, attention_mask, head_mask=None,
-            history_state=None):
+    def forward(self, input_tensor, attention_mask, head_mask=None, history_state=None):
         if self.pre_norm:
-            self_outputs = self.self(self.LayerNorm(input_tensor), attention_mask, head_mask,
-                    self.layerNorm(history_state) if history_state else history_state)
+            self_outputs = self.self(
+                self.LayerNorm(input_tensor),
+                attention_mask,
+                head_mask,
+                self.layerNorm(history_state) if history_state else history_state,
+            )
         else:
-            self_outputs = self.self(input_tensor, attention_mask, head_mask,
-                    history_state)
+            self_outputs = self.self(
+                input_tensor, attention_mask, head_mask, history_state
+            )
         attention_output = self.output(self_outputs[0], input_tensor)
-        outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
+        outputs = (attention_output,) + self_outputs[
+            1:
+        ]  # add attentions if we output them
         return outputs
 
 
@@ -235,10 +269,12 @@ class BertOutput(nn.Module):
     def __init__(self, config):
         super(BertOutput, self).__init__()
         self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
-        self.pre_norm = hasattr(config, 'pre_norm') and config.pre_norm
+        self.pre_norm = hasattr(config, "pre_norm") and config.pre_norm
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         if not self.pre_norm:
-            self.LayerNorm = LayerNormClass(config.hidden_size, eps=config.layer_norm_eps)
+            self.LayerNorm = LayerNormClass(
+                config.hidden_size, eps=config.layer_norm_eps
+            )
 
     def forward(self, hidden_states, input_tensor):
         hidden_states = self.dense(hidden_states)
@@ -249,13 +285,16 @@ class BertOutput(nn.Module):
             hidden_states = hidden_states + input_tensor
         return hidden_states
 
+
 class Mlp(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.pre_norm = hasattr(config, 'pre_norm') and config.pre_norm
+        self.pre_norm = hasattr(config, "pre_norm") and config.pre_norm
         self.intermediate = BertIntermediate(config)
         if self.pre_norm:
-            self.LayerNorm = LayerNormClass(config.hidden_size, eps=config.layer_norm_eps)
+            self.LayerNorm = LayerNormClass(
+                config.hidden_size, eps=config.layer_norm_eps
+            )
         self.output = BertOutput(config)
 
     def forward(self, attention_output):
@@ -266,24 +305,31 @@ class Mlp(nn.Module):
         layer_output = self.output(intermediate_output, attention_output)
         return layer_output
 
+
 class BertLayer(nn.Module):
     def __init__(self, config):
         super(BertLayer, self).__init__()
-        self.pre_norm = hasattr(config, 'pre_norm') and config.pre_norm
-        self.use_mlp_wrapper = hasattr(config, 'use_mlp_wrapper') and config.use_mlp_wrapper
+        self.pre_norm = hasattr(config, "pre_norm") and config.pre_norm
+        self.use_mlp_wrapper = (
+            hasattr(config, "use_mlp_wrapper") and config.use_mlp_wrapper
+        )
         self.attention = BertAttention(config)
         if self.use_mlp_wrapper:
             self.mlp = Mlp(config)
         else:
             self.intermediate = BertIntermediate(config)
             if self.pre_norm:
-                self.LayerNorm = LayerNormClass(config.hidden_size, eps=config.layer_norm_eps)
+                self.LayerNorm = LayerNormClass(
+                    config.hidden_size, eps=config.layer_norm_eps
+                )
             self.output = BertOutput(config)
 
-    def forward(self, hidden_states, attention_mask, head_mask=None,
-                history_state=None):
-        attention_outputs = self.attention(hidden_states, attention_mask,
-                head_mask, history_state)
+    def forward(
+        self, hidden_states, attention_mask, head_mask=None, history_state=None
+    ):
+        attention_outputs = self.attention(
+            hidden_states, attention_mask, head_mask, history_state
+        )
         attention_output = attention_outputs[0]
         if self.use_mlp_wrapper:
             layer_output = self.mlp(attention_output)
@@ -291,32 +337,45 @@ class BertLayer(nn.Module):
             if not self.pre_norm:
                 intermediate_output = self.intermediate(attention_output)
             else:
-                intermediate_output = self.intermediate(self.LayerNorm(attention_output))
+                intermediate_output = self.intermediate(
+                    self.LayerNorm(attention_output)
+                )
             layer_output = self.output(intermediate_output, attention_output)
-        outputs = (layer_output,) + attention_outputs[1:]  # add attentions if we output them
+        outputs = (layer_output,) + attention_outputs[
+            1:
+        ]  # add attentions if we output them
         return outputs
+
 
 class BertEncoder(nn.Module):
     def __init__(self, config):
         super(BertEncoder, self).__init__()
         self.output_attentions = config.output_attentions
         self.output_hidden_states = config.output_hidden_states
-        self.layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
-        self.pre_norm = hasattr(config, 'pre_norm') and config.pre_norm
+        self.layer = nn.ModuleList(
+            [BertLayer(config) for _ in range(config.num_hidden_layers)]
+        )
+        self.pre_norm = hasattr(config, "pre_norm") and config.pre_norm
         if self.pre_norm:
-            self.LayerNorm = LayerNormClass(config.hidden_size, eps=config.layer_norm_eps)
+            self.LayerNorm = LayerNormClass(
+                config.hidden_size, eps=config.layer_norm_eps
+            )
 
-    def forward(self, hidden_states, attention_mask, head_mask=None,
-                encoder_history_states=None):
+    def forward(
+        self, hidden_states, attention_mask, head_mask=None, encoder_history_states=None
+    ):
         all_hidden_states = ()
         all_attentions = ()
         for i, layer_module in enumerate(self.layer):
             if self.output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
-            history_state = None if encoder_history_states is None else encoder_history_states[i]
+            history_state = (
+                None if encoder_history_states is None else encoder_history_states[i]
+            )
             layer_outputs = layer_module(
-                hidden_states, attention_mask,
+                hidden_states,
+                attention_mask,
                 (None if head_mask is None else head_mask[i]),
                 history_state,
             )
@@ -332,4 +391,3 @@ class BertEncoder(nn.Module):
         if self.output_attentions:
             outputs = outputs + (all_attentions,)
         return outputs  # outputs, (hidden states), (attentions)
-
